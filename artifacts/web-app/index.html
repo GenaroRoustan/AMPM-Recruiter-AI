@@ -5,19 +5,100 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Entrevista AMPM</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background-color: #f4f4f4; }
-        .container { background: white; padding: 30px; border-radius: 10px; max-width: 400px; margin: auto; box-shadow: 0px 4px 10px rgba(0,0,0,0.1); }
-        h2 { color: #d32f2f; }
-        button { background-color: #d32f2f; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 5px; cursor: pointer; margin-top: 20px; width: 100%;}
-        button:disabled { background-color: #ccc; cursor: not-allowed; }
-        #status { margin-top: 20px; font-style: italic; color: #555; font-size: 14px;}
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 40px 20px;
+            background-color: #f4f4f4;
+        }
 
-        /* Spinner + loader */
-        #loader { display: none; margin-top: 24px; }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 400px;
+            margin: auto;
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
+        }
+
+        h2 { color: #d32f2f; margin-bottom: 2px; }
+        h3 { color: #555; font-weight: normal; margin-top: 0; margin-bottom: 16px; }
+        p.intro { color: #666; font-size: 14px; margin-bottom: 4px; }
+
+        /* ── Avatar ── */
+        #avatar-wrapper {
+            margin: 18px auto 20px;
+            width: 130px;
+            height: 130px;
+            position: relative;
+        }
+
+        #avatar {
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #c62828, #ef5350);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 0px 0px rgba(211, 47, 47, 0.35);
+            transform: scale(1);
+            transition: transform 0.06s ease-out, box-shadow 0.06s ease-out;
+            cursor: default;
+            overflow: hidden;
+        }
+
+        #avatar svg {
+            width: 72px;
+            height: 72px;
+            fill: rgba(255,255,255,0.92);
+            pointer-events: none;
+        }
+
+        /* Pulse ring idle (visible solo en reposo tras iniciar) */
+        #avatar-wrapper::after {
+            content: "";
+            position: absolute;
+            inset: -6px;
+            border-radius: 50%;
+            border: 2px solid rgba(211,47,47,0.18);
+            pointer-events: none;
+            transition: border-color 0.3s;
+        }
+
+        #avatar-wrapper.hablando::after {
+            border-color: rgba(211,47,47,0.0);
+        }
+
+        /* ── Botón ── */
+        button {
+            background-color: #d32f2f;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 17px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 18px;
+            width: 100%;
+        }
+
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        #status {
+            margin-top: 14px;
+            font-style: italic;
+            color: #555;
+            font-size: 14px;
+            min-height: 20px;
+        }
+
+        /* ── Loader ── */
+        #loader { display: none; margin-top: 20px; }
         #loader.visible { display: block; }
 
         #loader-text {
-            font-size: 14px;
+            font-size: 13px;
             color: #d32f2f;
             font-weight: bold;
             margin-bottom: 10px;
@@ -26,7 +107,7 @@
         .progress-bar-track {
             background-color: #f0f0f0;
             border-radius: 99px;
-            height: 8px;
+            height: 7px;
             overflow: hidden;
         }
 
@@ -44,18 +125,16 @@
         }
 
         .spinner {
-            width: 36px;
-            height: 36px;
+            width: 32px;
+            height: 32px;
             border: 4px solid #f0f0f0;
             border-top-color: #d32f2f;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
-            margin: 12px auto 0;
+            margin: 10px auto 0;
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -63,7 +142,29 @@
 <div class="container">
     <h2>AMPM Nicaragua</h2>
     <h3>Entrevista Virtual IA</h3>
-    <p>Presiona el botón para comenzar a hablar con tu entrevistador.</p>
+
+    <!-- Avatar reactivo -->
+    <div id="avatar-wrapper">
+        <div id="avatar">
+            <!-- Ícono de reclutadora IA -->
+            <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                <!-- Cabeza -->
+                <circle cx="32" cy="20" r="12"/>
+                <!-- Cuerpo / hombros -->
+                <path d="M10 56 C10 40 54 40 54 56" stroke="none"/>
+                <!-- Detalle: pequeños puntos (ojos) -->
+                <circle cx="27" cy="19" r="2" fill="#c62828"/>
+                <circle cx="37" cy="19" r="2" fill="#c62828"/>
+                <!-- Boca leve -->
+                <path d="M27 26 Q32 30 37 26" stroke="#c62828" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                <!-- Antena / IA -->
+                <line x1="32" y1="8" x2="32" y2="3" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="32" cy="2" r="2" fill="rgba(255,255,255,0.8)"/>
+            </svg>
+        </div>
+    </div>
+
+    <p class="intro">Presiona el botón para comenzar a hablar con tu entrevistador.</p>
 
     <button id="recordBtn">🎤 Iniciar Entrevista</button>
     <p id="status">Esperando...</p>
@@ -82,16 +183,20 @@
 
     let mediaRecorder;
     let audioChunks = [];
-    let isRecording = false;
+    let isRecording   = false;
     let entrevistaIniciada = false;
     let historial = [];
 
-    const recordBtn = document.getElementById("recordBtn");
-    const statusText = document.getElementById("status");
-    const loader = document.getElementById("loader");
+    const recordBtn     = document.getElementById("recordBtn");
+    const statusText    = document.getElementById("status");
+    const loader        = document.getElementById("loader");
+    const avatar        = document.getElementById("avatar");
+    const avatarWrapper = document.getElementById("avatar-wrapper");
 
+    // ── Loader ──────────────────────────────────────────────
     function mostrarLoader(texto) {
-        document.getElementById("loader-text").innerText = texto || "La reclutadora está procesando tu respuesta...";
+        document.getElementById("loader-text").innerText =
+            texto || "La reclutadora está procesando tu respuesta...";
         loader.classList.add("visible");
     }
 
@@ -99,9 +204,87 @@
         loader.classList.remove("visible");
     }
 
+    // ── Avatar / Lip-sync ────────────────────────────────────
+    let animFrameId = null;
+    let analyser    = null;
+    let dataArray   = null;
+
+    function iniciarAnimacionAvatar(source, audioCtx) {
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        avatarWrapper.classList.add("hablando");
+        animarFrame();
+    }
+
+    function animarFrame() {
+        animFrameId = requestAnimationFrame(animarFrame);
+        analyser.getByteFrequencyData(dataArray);
+
+        // Promedio de volumen normalizado 0-1
+        const sum = dataArray.reduce((a, b) => a + b, 0);
+        const vol = sum / (dataArray.length * 255);
+
+        // Escala: 1 en silencio → hasta 1.10 en volumen máximo
+        const scale = 1 + vol * 0.10;
+
+        // Anillo de luz: radio y opacidad según volumen
+        const glow   = Math.round(vol * 32);
+        const spread = Math.round(vol * 10);
+        const opacity = (0.25 + vol * 0.65).toFixed(2);
+
+        avatar.style.transform = `scale(${scale.toFixed(4)})`;
+        avatar.style.boxShadow =
+            `0 0 ${glow}px ${spread}px rgba(211,47,47,${opacity})`;
+    }
+
+    function detenerAnimacionAvatar() {
+        if (animFrameId) {
+            cancelAnimationFrame(animFrameId);
+            animFrameId = null;
+        }
+        analyser  = null;
+        dataArray = null;
+        avatarWrapper.classList.remove("hablando");
+        // Volver al estado de reposo suavemente (via CSS transition)
+        avatar.style.transform  = "scale(1)";
+        avatar.style.boxShadow  = "0 0 0px 0px rgba(211,47,47,0.35)";
+    }
+
+    // ── Reproducción de audio ────────────────────────────────
+    function reproducirAudio(blob, onFinished) {
+        const audioURL = URL.createObjectURL(blob);
+        const audio    = new Audio(audioURL);
+
+        audio.oncanplay = () => {
+            ocultarLoader();
+            statusText.innerText = "La reclutadora está hablando...";
+
+            // Conectar al Web Audio API para el análisis de volumen
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const source   = audioCtx.createMediaElementSource(audio);
+            iniciarAnimacionAvatar(source, audioCtx);
+
+            audio.play();
+        };
+
+        audio.onended = () => {
+            detenerAnimacionAvatar();
+            URL.revokeObjectURL(audioURL);
+            onFinished();
+        };
+
+        audio.load();
+    }
+
+    // ── Botón principal ──────────────────────────────────────
     recordBtn.addEventListener("click", async () => {
+
+        // Primer clic: enviar { event: "start" } sin grabar
         if (!entrevistaIniciada) {
-            recordBtn.disabled = true;
+            recordBtn.disabled  = true;
             recordBtn.innerText = "⏳ Conectando...";
             statusText.innerText = "Iniciando entrevista, por favor espera...";
             mostrarLoader("Conectando con la reclutadora...");
@@ -109,6 +292,7 @@
             return;
         }
 
+        // Clics siguientes: grabación normal
         if (!isRecording) {
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
@@ -130,9 +314,7 @@
                 audioBitsPerSecond: 16000
             });
 
-            mediaRecorder.ondataavailable = event => {
-                audioChunks.push(event.data);
-            };
+            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
 
             mediaRecorder.onstop = async () => {
                 const audioBlob = new Blob(audioChunks, { type: mimeType });
@@ -142,18 +324,20 @@
 
             mediaRecorder.start();
             isRecording = true;
-            recordBtn.innerText = "⏹️ Detener y Enviar";
+            recordBtn.innerText  = "⏹️ Detener y Enviar";
             statusText.innerText = "Grabando... (Habla ahora y presiona detener cuando termines)";
+
         } else {
             mediaRecorder.stop();
             isRecording = false;
-            recordBtn.innerText = "⏳ Pensando...";
-            recordBtn.disabled = true;
+            recordBtn.innerText  = "⏳ Pensando...";
+            recordBtn.disabled   = true;
             statusText.innerText = "";
             mostrarLoader();
         }
     });
 
+    // ── Llamadas al webhook ──────────────────────────────────
     async function iniciarEntrevista() {
         try {
             const response = await fetch(N8N_WEBHOOK_URL, {
@@ -163,17 +347,17 @@
             });
             const blob = await response.blob();
             reproducirAudio(blob, () => {
-                entrevistaIniciada = true;
-                recordBtn.innerText = "🎤 Hablar";
-                recordBtn.disabled = false;
+                entrevistaIniciada   = true;
+                recordBtn.innerText  = "🎤 Hablar";
+                recordBtn.disabled   = false;
                 statusText.innerText = "Tu turno de responder.";
             });
         } catch (error) {
             console.error("Error al iniciar:", error);
             ocultarLoader();
             statusText.innerText = "Error al conectar con el servidor. Intenta de nuevo.";
-            recordBtn.innerText = "🎤 Iniciar Entrevista";
-            recordBtn.disabled = false;
+            recordBtn.innerText  = "🎤 Iniciar Entrevista";
+            recordBtn.disabled   = false;
         }
     }
 
@@ -186,32 +370,17 @@
             const response = await fetch(N8N_WEBHOOK_URL, { method: "POST", body: formData });
             const blob = await response.blob();
             reproducirAudio(blob, () => {
-                recordBtn.innerText = "🎤 Hablar de nuevo";
-                recordBtn.disabled = false;
+                recordBtn.innerText  = "🎤 Hablar de nuevo";
+                recordBtn.disabled   = false;
                 statusText.innerText = "Tu turno de responder.";
             });
         } catch (error) {
             console.error("Error:", error);
             ocultarLoader();
             statusText.innerText = "Hubo un error de conexión con el servidor.";
-            recordBtn.innerText = "🎤 Intentar de nuevo";
-            recordBtn.disabled = false;
+            recordBtn.innerText  = "🎤 Intentar de nuevo";
+            recordBtn.disabled   = false;
         }
-    }
-
-    function reproducirAudio(blob, onFinished) {
-        const audioURL = URL.createObjectURL(blob);
-        const audio = new Audio(audioURL);
-        audio.oncanplay = () => {
-            ocultarLoader();
-            statusText.innerText = "La reclutadora está hablando...";
-            audio.play();
-        };
-        audio.onended = () => {
-            URL.revokeObjectURL(audioURL);
-            onFinished();
-        };
-        audio.load();
     }
 </script>
 </body>
