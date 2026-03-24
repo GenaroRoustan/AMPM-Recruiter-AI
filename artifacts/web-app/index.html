@@ -31,16 +31,27 @@
     let mediaRecorder;
     let audioChunks = [];
     let isRecording = false;
+    let entrevistaIniciada = false;
     let historial = [];
 
     const recordBtn = document.getElementById("recordBtn");
     const statusText = document.getElementById("status");
 
     recordBtn.addEventListener("click", async () => {
+        // Primer clic: enviar evento de inicio, sin grabar
+        if (!entrevistaIniciada) {
+            recordBtn.disabled = true;
+            recordBtn.innerText = "⏳ Conectando...";
+            statusText.innerText = "Iniciando entrevista, por favor espera...";
+            await iniciarEntrevista();
+            return;
+        }
+
+        // Clics siguientes: modo grabación normal
         if (!isRecording) {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorder = new MediaRecorder(stream);
-            
+
             mediaRecorder.ondataavailable = event => {
                 audioChunks.push(event.data);
             };
@@ -64,6 +75,28 @@
         }
     });
 
+    async function iniciarEntrevista() {
+        try {
+            const response = await fetch(N8N_WEBHOOK_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ event: "start" })
+            });
+            const blob = await response.blob();
+            reproducirAudio(blob, () => {
+                entrevistaIniciada = true;
+                recordBtn.innerText = "🎤 Hablar";
+                recordBtn.disabled = false;
+                statusText.innerText = "Tu turno de responder.";
+            });
+        } catch (error) {
+            console.error("Error al iniciar:", error);
+            statusText.innerText = "Error al conectar con el servidor. Intenta de nuevo.";
+            recordBtn.innerText = "🎤 Iniciar Entrevista";
+            recordBtn.disabled = false;
+        }
+    }
+
     async function enviarAN8n(audioBlob) {
         const formData = new FormData();
         formData.append("data", audioBlob, "grabacion.webm");
@@ -72,24 +105,28 @@
         try {
             const response = await fetch(N8N_WEBHOOK_URL, { method: "POST", body: formData });
             const blob = await response.blob();
-            const audioURL = URL.createObjectURL(blob);
-            const audio = new Audio(audioURL);
-
-            statusText.innerText = "La IA está hablando...";
-            audio.play();
-
-            audio.onended = () => {
-                URL.revokeObjectURL(audioURL);
+            reproducirAudio(blob, () => {
                 recordBtn.innerText = "🎤 Hablar de nuevo";
                 recordBtn.disabled = false;
                 statusText.innerText = "Tu turno de responder.";
-            };
+            });
         } catch (error) {
             console.error("Error:", error);
             statusText.innerText = "Hubo un error de conexión con el servidor.";
             recordBtn.innerText = "🎤 Intentar de nuevo";
             recordBtn.disabled = false;
         }
+    }
+
+    function reproducirAudio(blob, onFinished) {
+        const audioURL = URL.createObjectURL(blob);
+        const audio = new Audio(audioURL);
+        statusText.innerText = "La IA está hablando...";
+        audio.play();
+        audio.onended = () => {
+            URL.revokeObjectURL(audioURL);
+            onFinished();
+        };
     }
 </script>
 </body>
