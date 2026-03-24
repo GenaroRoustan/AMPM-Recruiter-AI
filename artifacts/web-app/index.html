@@ -71,24 +71,18 @@
 
         try {
             const response = await fetch(N8N_WEBHOOK_URL, { method: "POST", body: formData });
-            const result = await response.json();
-            
-            historial.push({ rol: "ia", texto: result.texto });
-
-            const audio = new Audio("data:audio/mp3;base64," + result.audio_base64);
-            audio.play();
+            const blob = await response.blob();
+            const audioURL = URL.createObjectURL(blob);
+            const audio = new Audio(audioURL);
 
             statusText.innerText = "La IA está hablando...";
-            
+            audio.play();
+
             audio.onended = () => {
-                if (result.is_finished) {
-                    statusText.innerText = "¡Entrevista finalizada! Muchas gracias.";
-                    recordBtn.style.display = "none";
-                } else {
-                    recordBtn.innerText = "🎤 Hablar de nuevo";
-                    recordBtn.disabled = false;
-                    statusText.innerText = "Tu turno de responder.";
-                }
+                URL.revokeObjectURL(audioURL);
+                recordBtn.innerText = "🎤 Hablar de nuevo";
+                recordBtn.disabled = false;
+                statusText.innerText = "Tu turno de responder.";
             };
         } catch (error) {
             console.error("Error:", error);
