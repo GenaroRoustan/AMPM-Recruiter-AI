@@ -493,6 +493,11 @@
             const blob = await response.blob();
 
             const isRetry = response.headers.get('X-Is-Retry') === 'true';
+            const transcript = response.headers.get('X-Transcript') ?? '';
+            if (transcript && conversationHistory.length > 0) {
+                const lastUserEntry = conversationHistory.filter(h => h.role === 'user').pop();
+                if (lastUserEntry) lastUserEntry.content = transcript;
+            }
 
             if (!isRetry) {
                 questionCount++;
