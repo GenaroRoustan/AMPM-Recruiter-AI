@@ -492,11 +492,15 @@
 
             const blob = await response.blob();
 
-            questionCount++;
-            actualizarContador();
-            conversationHistory.push({ role: "assistant", content: `[respuesta_${questionCount}]` });
+            const isRetry = response.headers.get('X-Is-Retry') === 'true';
 
-            if (questionCount >= MAX_QUESTIONS) {
+            if (!isRetry) {
+                questionCount++;
+                actualizarContador();
+                conversationHistory.push({ role: "assistant", content: `[respuesta_${questionCount}]` });
+            }
+
+            if (!isRetry && questionCount >= MAX_QUESTIONS) {
                 reproducirAudio(blob, finalizarEntrevista);
             } else {
                 reproducirAudio(blob, () => {
