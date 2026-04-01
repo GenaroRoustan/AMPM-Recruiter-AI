@@ -368,14 +368,8 @@
                 })
             });
 
-            const blob = await response.blob();
             ocultarLoader();
-
-            if (blob.size > 0) {
-                reproducirAudio(blob, mostrarPantallaFin);
-            } else {
-                mostrarPantallaFin();
-            }
+            mostrarPantallaFin();
         } catch (_) {
             ocultarLoader();
             mostrarPantallaFin();
