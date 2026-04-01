@@ -135,6 +135,35 @@
         }
 
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Fin entrevista ── */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        #fin-mensaje {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: #fff3f3;
+            border-radius: 8px;
+            border: 1px solid #ffcdd2;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        #fin-mensaje p.fin-titulo {
+            color: #d32f2f;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 0 0 8px;
+        }
+
+        #fin-mensaje p.fin-texto {
+            color: #555;
+            font-size: 14px;
+            margin: 0;
+        }
     </style>
 </head>
 <body>
@@ -164,6 +193,9 @@
         </div>
     </div>
 
+    <!-- Contador de preguntas -->
+    <p id="question-counter" style="color:#aaa; font-size:13px; margin: -10px 0 12px;"></p>
+
     <p class="intro">Presiona el botón para comenzar a hablar con tu entrevistador.</p>
 
     <button id="recordBtn">🎤 Iniciar Entrevista</button>
@@ -176,24 +208,44 @@
         </div>
         <div class="spinner"></div>
     </div>
+
+    <!-- Pantalla de fin de entrevista -->
+    <div id="fin-mensaje">
+        <p class="fin-titulo">✅ Entrevista Completada</p>
+        <p class="fin-texto">Gracias, hemos terminado tu entrevista. Pronto recibirás noticias.</p>
+    </div>
 </div>
 
 <script>
     const N8N_WEBHOOK_URL = "https://genaroroustan1.app.n8n.cloud/webhook/entrevista-ampm";
+    const TIMEOUT_MS      = 30000;
+    const MAX_QUESTIONS   = 30;
 
+    // ── Sesión única ────────────────────────────────────────────
+    const sessionId = crypto.randomUUID();
+
+    // ── Estado ──────────────────────────────────────────────────
     let mediaRecorder;
-    let audioChunks = [];
-    let isRecording   = false;
-    let entrevistaIniciada = false;
-    let historial = [];
+    let audioChunks          = [];
+    let isRecording          = false;
+    let entrevistaIniciada   = false;
+    let entrevistaFinalizada = false;
+    let conversationHistory  = [];
+    let questionCount        = 0;
 
-    const recordBtn     = document.getElementById("recordBtn");
-    const statusText    = document.getElementById("status");
-    const loader        = document.getElementById("loader");
-    const avatar        = document.getElementById("avatar");
-    const avatarWrapper = document.getElementById("avatar-wrapper");
+    // ── AudioContext global (instancia única reutilizada) ────────
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-    // ── Loader ──────────────────────────────────────────────
+    // ── DOM ──────────────────────────────────────────────────────
+    const recordBtn      = document.getElementById("recordBtn");
+    const statusText     = document.getElementById("status");
+    const loader         = document.getElementById("loader");
+    const avatar         = document.getElementById("avatar");
+    const avatarWrapper  = document.getElementById("avatar-wrapper");
+    const questionCounter = document.getElementById("question-counter");
+    const finMensaje     = document.getElementById("fin-mensaje");
+
+    // ── Loader ───────────────────────────────────────────────────
     function mostrarLoader(texto) {
         document.getElementById("loader-text").innerText =
             texto || "La reclutadora está procesando tu respuesta...";
@@ -204,17 +256,37 @@
         loader.classList.remove("visible");
     }
 
-    // ── Avatar / Lip-sync ────────────────────────────────────
-    let animFrameId = null;
-    let analyser    = null;
-    let dataArray   = null;
+    // ── Contador de preguntas ────────────────────────────────────
+    function actualizarContador() {
+        questionCounter.innerText = questionCount > 0
+            ? `Pregunta ${questionCount} de ${MAX_QUESTIONS}`
+            : "";
+    }
 
-    function iniciarAnimacionAvatar(source, audioCtx) {
+    // ── Fetch con timeout ────────────────────────────────────────
+    async function fetchConTimeout(url, options) {
+        const controller = new AbortController();
+        const timeoutId  = setTimeout(() => controller.abort(), TIMEOUT_MS);
+        try {
+            return await fetch(url, { ...options, signal: controller.signal });
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
+    // ── Avatar / Lip-sync ────────────────────────────────────────
+    let animFrameId   = null;
+    let analyser      = null;
+    let dataArray     = null;
+    let currentSource = null;
+
+    function iniciarAnimacionAvatar(source) {
         analyser = audioCtx.createAnalyser();
         analyser.fftSize = 256;
         source.connect(analyser);
         analyser.connect(audioCtx.destination);
-        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        dataArray     = new Uint8Array(analyser.frequencyBinCount);
+        currentSource = source;
         avatarWrapper.classList.add("hablando");
         animarFrame();
     }
@@ -223,21 +295,16 @@
         animFrameId = requestAnimationFrame(animarFrame);
         analyser.getByteFrequencyData(dataArray);
 
-        // Promedio de volumen normalizado 0-1
         const sum = dataArray.reduce((a, b) => a + b, 0);
         const vol = sum / (dataArray.length * 255);
 
-        // Escala: 1 en silencio → hasta 1.10 en volumen máximo
-        const scale = 1 + vol * 0.10;
-
-        // Anillo de luz: radio y opacidad según volumen
-        const glow   = Math.round(vol * 32);
-        const spread = Math.round(vol * 10);
+        const scale   = 1 + vol * 0.10;
+        const glow    = Math.round(vol * 32);
+        const spread  = Math.round(vol * 10);
         const opacity = (0.25 + vol * 0.65).toFixed(2);
 
         avatar.style.transform = `scale(${scale.toFixed(4)})`;
-        avatar.style.boxShadow =
-            `0 0 ${glow}px ${spread}px rgba(211,47,47,${opacity})`;
+        avatar.style.boxShadow = `0 0 ${glow}px ${spread}px rgba(211,47,47,${opacity})`;
     }
 
     function detenerAnimacionAvatar() {
@@ -245,15 +312,21 @@
             cancelAnimationFrame(animFrameId);
             animFrameId = null;
         }
-        analyser  = null;
-        dataArray = null;
+        if (currentSource && analyser) {
+            try {
+                currentSource.disconnect(analyser);
+                analyser.disconnect(audioCtx.destination);
+            } catch (_) {}
+        }
+        analyser      = null;
+        dataArray     = null;
+        currentSource = null;
         avatarWrapper.classList.remove("hablando");
-        // Volver al estado de reposo suavemente (via CSS transition)
-        avatar.style.transform  = "scale(1)";
-        avatar.style.boxShadow  = "0 0 0px 0px rgba(211,47,47,0.35)";
+        avatar.style.transform = "scale(1)";
+        avatar.style.boxShadow = "0 0 0px 0px rgba(211,47,47,0.35)";
     }
 
-    // ── Reproducción de audio ────────────────────────────────
+    // ── Reproducción de audio ────────────────────────────────────
     function reproducirAudio(blob, onFinished) {
         const audioURL = URL.createObjectURL(blob);
         const audio    = new Audio(audioURL);
@@ -262,12 +335,11 @@
             ocultarLoader();
             statusText.innerText = "La reclutadora está hablando...";
 
-            // Conectar al Web Audio API para el análisis de volumen
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const source   = audioCtx.createMediaElementSource(audio);
-            iniciarAnimacionAvatar(source, audioCtx);
-
-            audio.play();
+            audioCtx.resume().then(() => {
+                const source = audioCtx.createMediaElementSource(audio);
+                iniciarAnimacionAvatar(source);
+                audio.play();
+            });
         };
 
         audio.onended = () => {
@@ -279,27 +351,68 @@
         audio.load();
     }
 
-    // ── Botón principal ──────────────────────────────────────
-    recordBtn.addEventListener("click", async () => {
+    // ── Pantalla de fin ──────────────────────────────────────────
+    async function finalizarEntrevista() {
+        entrevistaFinalizada = true;
+        recordBtn.disabled   = true;
+        mostrarLoader("Finalizando entrevista...");
 
-        // Primer clic: enviar { event: "start" } sin grabar
+        try {
+            const response = await fetchConTimeout(N8N_WEBHOOK_URL, {
+                method:  "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    event:   "finalizar",
+                    sessionId,
+                    historial: conversationHistory
+                })
+            });
+
+            const blob = await response.blob();
+            ocultarLoader();
+
+            if (blob.size > 0) {
+                reproducirAudio(blob, mostrarPantallaFin);
+            } else {
+                mostrarPantallaFin();
+            }
+        } catch (_) {
+            ocultarLoader();
+            mostrarPantallaFin();
+        }
+    }
+
+    function mostrarPantallaFin() {
+        recordBtn.style.display  = "none";
+        statusText.innerText     = "";
+        questionCounter.innerText = "";
+        finMensaje.style.display = "block";
+    }
+
+    // ── Botón principal ──────────────────────────────────────────
+    recordBtn.addEventListener("click", async () => {
+        if (entrevistaFinalizada) return;
+
+        // Primer clic: iniciar entrevista
         if (!entrevistaIniciada) {
-            recordBtn.disabled  = true;
-            recordBtn.innerText = "⏳ Conectando...";
+            recordBtn.disabled   = true;
+            recordBtn.innerText  = "⏳ Conectando...";
             statusText.innerText = "Iniciando entrevista, por favor espera...";
             mostrarLoader("Conectando con la reclutadora...");
             await iniciarEntrevista();
             return;
         }
 
-        // Clics siguientes: grabación normal
+        // Iniciar grabación
         if (!isRecording) {
+            if (audioCtx.state === "suspended") await audioCtx.resume();
+
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
-                    sampleRate: 16000,
-                    channelCount: 1,
-                    echoCancellation: true,
-                    noiseSuppression: true
+                    sampleRate:        16000,
+                    channelCount:      1,
+                    echoCancellation:  true,
+                    noiseSuppression:  true
                 }
             });
 
@@ -319,17 +432,20 @@
             mediaRecorder.onstop = async () => {
                 const audioBlob = new Blob(audioChunks, { type: mimeType });
                 audioChunks = [];
+                // Registrar turno del usuario en historial
+                conversationHistory.push({ role: "user", audioTimestamp: Date.now() });
                 enviarAN8n(audioBlob);
             };
 
             mediaRecorder.start();
-            isRecording = true;
+            isRecording          = true;
             recordBtn.innerText  = "⏹️ Detener y Enviar";
             statusText.innerText = "Grabando... (Habla ahora y presiona detener cuando termines)";
 
+        // Detener grabación
         } else {
             mediaRecorder.stop();
-            isRecording = false;
+            isRecording          = false;
             recordBtn.innerText  = "⏳ Pensando...";
             recordBtn.disabled   = true;
             statusText.innerText = "";
@@ -337,49 +453,72 @@
         }
     });
 
-    // ── Llamadas al webhook ──────────────────────────────────
+    // ── Llamadas al webhook ──────────────────────────────────────
     async function iniciarEntrevista() {
         try {
-            const response = await fetch(N8N_WEBHOOK_URL, {
-                method: "POST",
+            const response = await fetchConTimeout(N8N_WEBHOOK_URL, {
+                method:  "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ event: "start" })
+                body: JSON.stringify({ event: "start", sessionId })
             });
+
             const blob = await response.blob();
+
             reproducirAudio(blob, () => {
-                entrevistaIniciada   = true;
+                entrevistaIniciada = true;
+                questionCount      = 1;
+                actualizarContador();
+                conversationHistory.push({ role: "assistant", content: "[bienvenida]" });
                 recordBtn.innerText  = "🎤 Hablar";
                 recordBtn.disabled   = false;
                 statusText.innerText = "Tu turno de responder.";
             });
+
         } catch (error) {
-            console.error("Error al iniciar:", error);
             ocultarLoader();
-            statusText.innerText = "Error al conectar con el servidor. Intenta de nuevo.";
-            recordBtn.innerText  = "🎤 Iniciar Entrevista";
-            recordBtn.disabled   = false;
+            statusText.innerText = error.name === "AbortError"
+                ? "Hubo un problema de conexión, intenta de nuevo."
+                : "Error al conectar con el servidor. Intenta de nuevo.";
+            recordBtn.innerText = "🎤 Iniciar Entrevista";
+            recordBtn.disabled  = false;
         }
     }
 
     async function enviarAN8n(audioBlob) {
         const formData = new FormData();
-        formData.append("data", audioBlob, "grabacion.webm");
-        formData.append("historial", JSON.stringify(historial));
+        formData.append("data",      audioBlob, "grabacion.webm");
+        formData.append("historial", JSON.stringify(conversationHistory));
+        formData.append("sessionId", sessionId);
 
         try {
-            const response = await fetch(N8N_WEBHOOK_URL, { method: "POST", body: formData });
-            const blob = await response.blob();
-            reproducirAudio(blob, () => {
-                recordBtn.innerText  = "🎤 Hablar de nuevo";
-                recordBtn.disabled   = false;
-                statusText.innerText = "Tu turno de responder.";
+            const response = await fetchConTimeout(N8N_WEBHOOK_URL, {
+                method: "POST",
+                body:   formData
             });
+
+            const blob = await response.blob();
+
+            questionCount++;
+            actualizarContador();
+            conversationHistory.push({ role: "assistant", content: `[respuesta_${questionCount}]` });
+
+            if (questionCount >= MAX_QUESTIONS) {
+                reproducirAudio(blob, finalizarEntrevista);
+            } else {
+                reproducirAudio(blob, () => {
+                    recordBtn.innerText  = "🎤 Hablar de nuevo";
+                    recordBtn.disabled   = false;
+                    statusText.innerText = "Tu turno de responder.";
+                });
+            }
+
         } catch (error) {
-            console.error("Error:", error);
             ocultarLoader();
-            statusText.innerText = "Hubo un error de conexión con el servidor.";
-            recordBtn.innerText  = "🎤 Intentar de nuevo";
-            recordBtn.disabled   = false;
+            statusText.innerText = error.name === "AbortError"
+                ? "Hubo un problema de conexión, intenta de nuevo."
+                : "Hubo un error de conexión con el servidor.";
+            recordBtn.innerText = "🎤 Intentar de nuevo";
+            recordBtn.disabled  = false;
         }
     }
 </script>
