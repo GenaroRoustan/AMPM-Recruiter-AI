@@ -281,6 +281,10 @@
     let currentSource = null;
 
     function iniciarAnimacionAvatar(source) {
+        if (animFrameId) {
+            cancelAnimationFrame(animFrameId);
+            animFrameId = null;
+        }
         analyser = audioCtx.createAnalyser();
         analyser.fftSize = 256;
         source.connect(analyser);
@@ -328,23 +332,40 @@
 
     // ── Reproducción de audio ────────────────────────────────────
     function reproducirAudio(blob, onFinished) {
-        const audioURL = URL.createObjectURL(blob);
-        const audio    = new Audio(audioURL);
+        const audioURL      = URL.createObjectURL(blob);
+        const audio         = new Audio(audioURL);
+        let   sourceCreated = false;
 
         audio.oncanplay = () => {
+            if (sourceCreated) return;
+            sourceCreated = true;
             ocultarLoader();
             statusText.innerText = "La reclutadora está hablando...";
 
             audioCtx.resume().then(() => {
-                const source = audioCtx.createMediaElementSource(audio);
-                iniciarAnimacionAvatar(source);
-                audio.play();
+                try {
+                    const source = audioCtx.createMediaElementSource(audio);
+                    iniciarAnimacionAvatar(source);
+                } catch (_) {}
+                audio.play().catch(() => {
+                    detenerAnimacionAvatar();
+                    URL.revokeObjectURL(audioURL);
+                    onFinished();
+                });
             });
         };
 
         audio.onended = () => {
             detenerAnimacionAvatar();
             URL.revokeObjectURL(audioURL);
+            onFinished();
+        };
+
+        audio.onerror = () => {
+            detenerAnimacionAvatar();
+            URL.revokeObjectURL(audioURL);
+            ocultarLoader();
+            statusText.innerText = "Error al reproducir el audio. Intenta de nuevo.";
             onFinished();
         };
 
@@ -403,10 +424,9 @@
 
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
-                    sampleRate:        16000,
-                    channelCount:      1,
-                    echoCancellation:  true,
-                    noiseSuppression:  true
+                    channelCount:     1,
+                    echoCancellation: true,
+                    noiseSuppression: true
                 }
             });
 
@@ -418,16 +438,17 @@
 
             mediaRecorder = new MediaRecorder(stream, {
                 mimeType,
-                audioBitsPerSecond: 16000
+                audioBitsPerSecond: 32000
             });
 
             mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
 
             mediaRecorder.onstop = async () => {
+                stream.getTracks().forEach(t => t.stop());
                 const audioBlob = new Blob(audioChunks, { type: mimeType });
                 audioChunks = [];
                 // Registrar turno del usuario en historial
-                conversationHistory.push({ role: "user", audioTimestamp: Date.now() });
+                conversationHistory.push({ role: "user", content: "", audioTimestamp: Date.now() });
                 enviarAN8n(audioBlob);
             };
 
@@ -456,6 +477,7 @@
                 body: JSON.stringify({ event: "start", sessionId })
             });
 
+            if (!response.ok) throw new Error('HTTP ' + response.status);
             const blob = await response.blob();
 
             reproducirAudio(blob, () => {
@@ -490,6 +512,7 @@
                 body:   formData
             });
 
+            if (!response.ok) throw new Error('HTTP ' + response.status);
             const blob = await response.blob();
 
             const isRetry = response.headers.get('X-Is-Retry') === 'true';
