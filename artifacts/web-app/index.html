@@ -70,6 +70,16 @@
             border-color: rgba(211,47,47,0.0);
         }
 
+        /* Avatar "pensando" — pulso suave durante espera */
+        @keyframes thinking {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0px 0px rgba(211,47,47,0.35); }
+            50%      { transform: scale(1.04); box-shadow: 0 0 14px 4px rgba(211,47,47,0.25); }
+        }
+
+        #avatar-wrapper.pensando #avatar {
+            animation: thinking 1.8s ease-in-out infinite;
+        }
+
         /* ── Botón ── */
         button {
             background-color: #d32f2f;
@@ -219,7 +229,7 @@
 <script>
     const N8N_WEBHOOK_URL = "https://genaroroustan1.app.n8n.cloud/webhook/entrevista-ampm";
     const TIMEOUT_MS      = 30000;
-    const MAX_QUESTIONS   = 3;
+    const MAX_QUESTIONS   = 30;
 
     // ── Sesión única ────────────────────────────────────────────
     const sessionId = crypto.randomUUID();
@@ -245,15 +255,36 @@
     const questionCounter = document.getElementById("question-counter");
     const finMensaje     = document.getElementById("fin-mensaje");
 
+    // ── Frases rotativas durante espera ─────────────────────────
+    const FRASES_PENSANDO = [
+        "La reclutadora está procesando tu respuesta...",
+        "Analizando tu respuesta...",
+        "Preparando la siguiente pregunta...",
+        "Un momento, estoy pensando..."
+    ];
+    let fraseInterval = null;
+
     // ── Loader ───────────────────────────────────────────────────
     function mostrarLoader(texto) {
-        document.getElementById("loader-text").innerText =
-            texto || "La reclutadora está procesando tu respuesta...";
+        const loaderText = document.getElementById("loader-text");
+        loaderText.innerText = texto || FRASES_PENSANDO[0];
         loader.classList.add("visible");
+
+        clearInterval(fraseInterval);
+        if (!texto) {
+            let i = 1;
+            fraseInterval = setInterval(() => {
+                loaderText.innerText = FRASES_PENSANDO[i % FRASES_PENSANDO.length];
+                i++;
+            }, 2500);
+        }
     }
 
     function ocultarLoader() {
+        clearInterval(fraseInterval);
+        fraseInterval = null;
         loader.classList.remove("visible");
+        avatarWrapper.classList.remove("pensando");
     }
 
     // ── Contador de preguntas ────────────────────────────────────
@@ -340,6 +371,7 @@
             if (sourceCreated) return;
             sourceCreated = true;
             ocultarLoader();
+            avatarWrapper.classList.remove("pensando");
             statusText.innerText = "La reclutadora está hablando...";
 
             audioCtx.resume().then(() => {
@@ -464,6 +496,7 @@
             recordBtn.innerText  = "⏳ Pensando...";
             recordBtn.disabled   = true;
             statusText.innerText = "";
+            avatarWrapper.classList.add("pensando");
             mostrarLoader();
         }
     });
