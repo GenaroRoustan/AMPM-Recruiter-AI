@@ -560,7 +560,7 @@
             console.log('X-Transcript:', response.headers.get('X-Transcript'));
             console.log('Access-Control-Expose-Headers:', response.headers.get('Access-Control-Expose-Headers'));
 
-            const isRetry = response.headers.get('X-Is-Retry') === 'true';
+            const isRetry = (response.headers.get('X-Is-Retry') ?? '').replace(/^=/, '').trim() === 'true';
             const transcript = (response.headers.get('X-Transcript') ?? '').replace(/^=/, '').trim();
             if (transcript && conversationHistory.length > 0) {
                 const lastUserEntry = conversationHistory.filter(h => h.role === 'user').pop();
