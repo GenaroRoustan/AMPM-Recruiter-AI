@@ -240,6 +240,7 @@
     let isRecording          = false;
     let entrevistaIniciada   = false;
     let entrevistaFinalizada = false;
+    let finalizando          = false;
     let conversationHistory  = [];
     let questionCount        = 0;
 
@@ -366,6 +367,20 @@
         const audioURL      = URL.createObjectURL(blob);
         const audio         = new Audio(audioURL);
         let   sourceCreated = false;
+        let   finished      = false;
+
+        function safeFinish() {
+            if (finished) return;
+            finished = true;
+            clearTimeout(safetyTimeout);
+            detenerAnimacionAvatar();
+            URL.revokeObjectURL(audioURL);
+            onFinished();
+        }
+
+        const safetyTimeout = setTimeout(() => {
+            if (!finished) safeFinish();
+        }, 60000);
 
         audio.oncanplay = () => {
             if (sourceCreated) return;
@@ -379,26 +394,16 @@
                     const source = audioCtx.createMediaElementSource(audio);
                     iniciarAnimacionAvatar(source);
                 } catch (_) {}
-                audio.play().catch(() => {
-                    detenerAnimacionAvatar();
-                    URL.revokeObjectURL(audioURL);
-                    onFinished();
-                });
+                audio.play().catch(() => safeFinish());
             });
         };
 
-        audio.onended = () => {
-            detenerAnimacionAvatar();
-            URL.revokeObjectURL(audioURL);
-            onFinished();
-        };
+        audio.onended = () => safeFinish();
 
         audio.onerror = () => {
-            detenerAnimacionAvatar();
-            URL.revokeObjectURL(audioURL);
             ocultarLoader();
             statusText.innerText = "Error al reproducir el audio. Intenta de nuevo.";
-            onFinished();
+            safeFinish();
         };
 
         audio.load();
@@ -406,6 +411,8 @@
 
     // ── Pantalla de fin ──────────────────────────────────────────
     async function finalizarEntrevista() {
+        if (finalizando) return;
+        finalizando          = true;
         entrevistaFinalizada = true;
         recordBtn.disabled   = true;
         mostrarLoader("Finalizando entrevista...");
@@ -573,6 +580,10 @@
 
         } catch (error) {
             ocultarLoader();
+            // Limpiar entrada huérfana del usuario si el envío falló
+            if (conversationHistory.length > 0 && conversationHistory[conversationHistory.length - 1].role === 'user') {
+                conversationHistory.pop();
+            }
             statusText.innerText = error.name === "AbortError"
                 ? "Hubo un problema de conexión, intenta de nuevo."
                 : "Hubo un error de conexión con el servidor.";
