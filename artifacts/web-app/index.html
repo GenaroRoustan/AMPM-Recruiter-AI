@@ -555,6 +555,11 @@
             if (!response.ok) throw new Error('HTTP ' + response.status);
             const blob = await response.blob();
 
+            console.log('Headers recibidos:');
+            console.log('X-Is-Retry:', response.headers.get('X-Is-Retry'));
+            console.log('X-Transcript:', response.headers.get('X-Transcript'));
+            console.log('Access-Control-Expose-Headers:', response.headers.get('Access-Control-Expose-Headers'));
+
             const isRetry = response.headers.get('X-Is-Retry') === 'true';
             const transcript = (response.headers.get('X-Transcript') ?? '').replace(/^=/, '').trim();
             if (transcript && conversationHistory.length > 0) {
