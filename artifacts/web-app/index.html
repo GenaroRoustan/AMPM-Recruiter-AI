@@ -489,13 +489,10 @@
                 // Registrar turno del usuario en historial
                 conversationHistory.push({ role: "user", content: "", audioTimestamp: Date.now() });
                 if (questionCount >= MAX_QUESTIONS) {
-                    const audioBlob2 = audioBlob;
-                    stream.getTracks().forEach(t => t.stop());
-                    conversationHistory.push({ role: "user", content: "", audioTimestamp: Date.now() });
                     finalizarEntrevista();
-                    return;
+                } else {
+                    enviarAN8n(audioBlob);
                 }
-                enviarAN8n(audioBlob);
             };
 
             mediaRecorder.start();
