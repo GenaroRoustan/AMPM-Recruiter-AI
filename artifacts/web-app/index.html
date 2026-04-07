@@ -488,6 +488,13 @@
                 audioChunks = [];
                 // Registrar turno del usuario en historial
                 conversationHistory.push({ role: "user", content: "", audioTimestamp: Date.now() });
+                if (questionCount >= MAX_QUESTIONS) {
+                    const audioBlob2 = audioBlob;
+                    stream.getTracks().forEach(t => t.stop());
+                    conversationHistory.push({ role: "user", content: "", audioTimestamp: Date.now() });
+                    finalizarEntrevista();
+                    return;
+                }
                 enviarAN8n(audioBlob);
             };
 
@@ -574,7 +581,11 @@
             }
 
             if (!isRetry && questionCount >= MAX_QUESTIONS) {
-                reproducirAudio(blob, finalizarEntrevista);
+                reproducirAudio(blob, () => {
+                    recordBtn.innerText  = "🎤 Responder última pregunta";
+                    recordBtn.disabled   = false;
+                    statusText.innerText = "Esta es tu última respuesta.";
+                });
             } else {
                 reproducirAudio(blob, () => {
                     recordBtn.innerText  = "🎤 Hablar de nuevo";
