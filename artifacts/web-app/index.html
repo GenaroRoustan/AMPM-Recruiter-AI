@@ -489,7 +489,9 @@
 
     // ── AudioContext global (instancia única reutilizada) ────────
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    const audioCtx = AudioContextClass ? new AudioContextClass() : null;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    // En móviles: NO crear AudioContext para evitar que robe la salida de audio
+    const audioCtx = (!isMobile && AudioContextClass) ? new AudioContextClass() : null;
 
     // ── DOM ──────────────────────────────────────────────────────
     const recordBtn      = document.getElementById("recordBtn");
@@ -609,10 +611,9 @@
 
     // ── Reproducción de audio ────────────────────────────────────
     function reproducirAudio(blob, onFinished) {
-        const audioURL      = URL.createObjectURL(blob);
-        const audio         = new Audio(audioURL);
-        let   sourceCreated = false;
-        let   finished      = false;
+        const audioURL = URL.createObjectURL(blob);
+        const audio    = new Audio();
+        let   finished = false;
 
         function safeFinish() {
             if (finished) return;
@@ -627,57 +628,59 @@
             if (!finished) safeFinish();
         }, 60000);
 
-        // iOS / Android compatibility
-        audio.muted = false;
+        // Atributos de compatibilidad móvil
         audio.setAttribute('playsinline', '');
         audio.setAttribute('webkit-playsinline', '');
         audio.preload = 'auto';
 
-        // Sin AudioContext — reproducir directo sin lip-sync
-        if (!audioCtx) {
-            ocultarLoader();
-            avatarWrapper.classList.remove("pensando");
-            statusText.innerText = "La reclutadora está hablando...";
-            audio.onended = () => safeFinish();
-            audio.onerror = () => {
-                ocultarLoader();
-                statusText.innerText = "Error al reproducir el audio. Intenta de nuevo.";
-                safeFinish();
-            };
-            audio.play().catch(() => safeFinish());
-            return;
-        }
-
-        audio.oncanplay = () => {
-            if (sourceCreated) return;
-            sourceCreated = true;
-            ocultarLoader();
-            avatarWrapper.classList.remove("pensando");
-            statusText.innerText = "La reclutadora está hablando...";
-
-            audioCtx.resume().then(() => {
-                try {
-                    const source = audioCtx.createMediaElementSource(audio);
-                    iniciarAnimacionAvatar(source);
-                } catch (_) {
-                    // Fallback: reproducir sin lip-sync si AudioContext falla
-                }
-                audio.play().catch(() => safeFinish());
-            }).catch(() => {
-                // AudioContext.resume() falló — reproducir directo sin lip-sync
-                audio.play().catch(() => safeFinish());
-            });
-        };
-
         audio.onended = () => safeFinish();
-
         audio.onerror = () => {
             ocultarLoader();
             statusText.innerText = "Error al reproducir el audio. Intenta de nuevo.";
             safeFinish();
         };
 
-        audio.load();
+        function intentarPlay() {
+            ocultarLoader();
+            avatarWrapper.classList.remove("pensando");
+            statusText.innerText = "La reclutadora está hablando...";
+
+            // Desktop con AudioContext: lip-sync
+            if (audioCtx) {
+                try {
+                    audioCtx.resume();
+                    const source = audioCtx.createMediaElementSource(audio);
+                    iniciarAnimacionAvatar(source);
+                } catch (_) {
+                    // Fallo de AudioContext — play directo sin lip-sync
+                }
+            }
+
+            audio.play().catch(() => safeFinish());
+        }
+
+        // Asignar src y esperar que esté listo
+        audio.src = audioURL;
+
+        // canplaythrough es más confiable que canplay en iOS
+        if (audio.readyState >= 3) {
+            // Ya listo (cache o blob pequeño)
+            intentarPlay();
+        } else {
+            let played = false;
+            audio.oncanplaythrough = () => {
+                if (played) return;
+                played = true;
+                intentarPlay();
+            };
+            // Fallback: si canplaythrough no dispara en 5s, intentar igual
+            setTimeout(() => {
+                if (!played && !finished) {
+                    played = true;
+                    intentarPlay();
+                }
+            }, 5000);
+        }
     }
 
     // ── Pantalla de fin ──────────────────────────────────────────
@@ -749,10 +752,9 @@
                              MediaRecorder.isTypeSupported('audio/aac') ? 'audio/aac' :
                              '';
 
-            mediaRecorder = new MediaRecorder(stream, {
-                mimeType,
-                audioBitsPerSecond: 32000
-            });
+            const recorderOptions = { audioBitsPerSecond: 32000 };
+            if (mimeType) recorderOptions.mimeType = mimeType;
+            mediaRecorder = new MediaRecorder(stream, recorderOptions);
 
             mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
 
