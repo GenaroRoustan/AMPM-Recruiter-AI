@@ -393,7 +393,12 @@
                 try {
                     const source = audioCtx.createMediaElementSource(audio);
                     iniciarAnimacionAvatar(source);
-                } catch (_) {}
+                } catch (_) {
+                    // Fallback: reproducir sin lip-sync si AudioContext falla
+                }
+                audio.play().catch(() => safeFinish());
+            }).catch(() => {
+                // AudioContext.resume() falló — reproducir directo sin lip-sync
                 audio.play().catch(() => safeFinish());
             });
         };
@@ -515,6 +520,7 @@
     // ── Llamadas al webhook ──────────────────────────────────────
     async function iniciarEntrevista() {
         try {
+            await audioCtx.resume();
             const response = await fetchConTimeout(N8N_WEBHOOK_URL, {
                 method:  "POST",
                 headers: { "Content-Type": "application/json" },
