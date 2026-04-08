@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Entrevista AMPM</title>
     <style>
         body {
@@ -461,7 +461,8 @@
         btnComenzar.disabled = !valido;
     }
 
-    function comenzarEntrevista() {
+    async function comenzarEntrevista() {
+        try { if (audioCtx) await audioCtx.resume(); } catch(e) {}
         document.getElementById("registro-screen").style.display  = "none";
         document.getElementById("entrevista-screen").style.display = "block";
     }
@@ -487,7 +488,8 @@
     let questionCount        = 0;
 
     // ── AudioContext global (instancia única reutilizada) ────────
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = AudioContextClass ? new AudioContextClass() : null;
 
     // ── DOM ──────────────────────────────────────────────────────
     const recordBtn      = document.getElementById("recordBtn");
@@ -555,6 +557,7 @@
     let currentSource = null;
 
     function iniciarAnimacionAvatar(source) {
+        if (!audioCtx) return;
         if (animFrameId) {
             cancelAnimationFrame(animFrameId);
             animFrameId = null;
@@ -593,7 +596,7 @@
         if (currentSource && analyser) {
             try {
                 currentSource.disconnect(analyser);
-                analyser.disconnect(audioCtx.destination);
+                if (audioCtx) analyser.disconnect(audioCtx.destination);
             } catch (_) {}
         }
         analyser      = null;
@@ -623,6 +626,27 @@
         const safetyTimeout = setTimeout(() => {
             if (!finished) safeFinish();
         }, 60000);
+
+        // iOS / Android compatibility
+        audio.muted = false;
+        audio.setAttribute('playsinline', '');
+        audio.setAttribute('webkit-playsinline', '');
+        audio.preload = 'auto';
+
+        // Sin AudioContext — reproducir directo sin lip-sync
+        if (!audioCtx) {
+            ocultarLoader();
+            avatarWrapper.classList.remove("pensando");
+            statusText.innerText = "La reclutadora está hablando...";
+            audio.onended = () => safeFinish();
+            audio.onerror = () => {
+                ocultarLoader();
+                statusText.innerText = "Error al reproducir el audio. Intenta de nuevo.";
+                safeFinish();
+            };
+            audio.play().catch(() => safeFinish());
+            return;
+        }
 
         audio.oncanplay = () => {
             if (sourceCreated) return;
@@ -697,6 +721,7 @@
 
         // Primer clic: iniciar entrevista
         if (!entrevistaIniciada) {
+            try { if (audioCtx) await audioCtx.resume(); } catch(e) {}
             recordBtn.disabled   = true;
             recordBtn.innerText  = "⏳ Conectando...";
             statusText.innerText = "Iniciando entrevista, por favor espera...";
@@ -707,7 +732,7 @@
 
         // Iniciar grabación
         if (!isRecording) {
-            if (audioCtx.state === "suspended") await audioCtx.resume();
+            if (audioCtx && audioCtx.state === "suspended") await audioCtx.resume();
 
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
@@ -717,11 +742,12 @@
                 }
             });
 
-            const mimeType = MediaRecorder.isTypeSupported('audio/ogg; codecs=opus')
-                ? 'audio/ogg; codecs=opus'
-                : MediaRecorder.isTypeSupported('audio/webm; codecs=opus')
-                    ? 'audio/webm; codecs=opus'
-                    : 'audio/webm';
+            const mimeType = MediaRecorder.isTypeSupported('audio/webm; codecs=opus') ? 'audio/webm; codecs=opus' :
+                             MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' :
+                             MediaRecorder.isTypeSupported('audio/mp4; codecs=mp4a.40.2') ? 'audio/mp4; codecs=mp4a.40.2' :
+                             MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' :
+                             MediaRecorder.isTypeSupported('audio/aac') ? 'audio/aac' :
+                             '';
 
             mediaRecorder = new MediaRecorder(stream, {
                 mimeType,
@@ -763,7 +789,7 @@
     // ── Llamadas al webhook ──────────────────────────────────────
     async function iniciarEntrevista() {
         try {
-            await audioCtx.resume();
+            if (audioCtx) await audioCtx.resume();
             const response = await fetchConTimeout(N8N_WEBHOOK_URL, {
                 method:  "POST",
                 headers: { "Content-Type": "application/json" },
