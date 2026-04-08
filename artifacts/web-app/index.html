@@ -174,11 +174,188 @@
             font-size: 14px;
             margin: 0;
         }
+
+        /* ── Registro ── */
+        #registro-screen {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 400px;
+            margin: auto;
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
+            text-align: left;
+        }
+
+        #registro-screen .reg-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #registro-screen .reg-header .reg-emoji {
+            font-size: 48px;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        #registro-screen label {
+            display: block;
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 6px;
+            margin-top: 16px;
+        }
+
+        #registro-screen input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            font-size: 15px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            outline: none;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+
+        #registro-screen input[type="text"]:focus {
+            border-color: #d32f2f;
+        }
+
+        #registro-screen select {
+            width: 100%;
+            padding: 12px;
+            font-size: 15px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            outline: none;
+            box-sizing: border-box;
+            background: white;
+            cursor: pointer;
+        }
+
+        #registro-screen select:focus {
+            border-color: #d32f2f;
+        }
+
+        .btn-toggle-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        .btn-toggle {
+            flex: 1;
+            padding: 12px 8px;
+            font-size: 14px;
+            border: 2px solid #d32f2f;
+            border-radius: 6px;
+            background: white;
+            color: #d32f2f;
+            cursor: pointer;
+            text-align: center;
+            transition: background 0.2s, color 0.2s;
+            width: auto;
+            margin-top: 0;
+        }
+
+        .btn-toggle.selected {
+            background: #d32f2f;
+            color: white;
+        }
+
+        .chip-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .chip {
+            padding: 8px 16px;
+            font-size: 13px;
+            border: 2px solid #d32f2f;
+            border-radius: 20px;
+            background: white;
+            color: #d32f2f;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+            width: auto;
+            margin-top: 0;
+        }
+
+        .chip.selected {
+            background: #d32f2f;
+            color: white;
+        }
+
+        #campos-anteriores {
+            display: none;
+            margin-top: 8px;
+        }
+
+        #campos-anteriores.visible {
+            display: block;
+        }
+
+        #btn-comenzar {
+            margin-top: 24px;
+        }
     </style>
 </head>
 <body>
 
-<div class="container">
+<!-- ── Pantalla de Registro ── -->
+<div id="registro-screen">
+    <div class="reg-header">
+        <span class="reg-emoji">🏪</span>
+        <h2>Proceso de Selección</h2>
+        <h3>AMPM Nicaragua</h3>
+    </div>
+
+    <label for="reg-nombre">Nombre completo *</label>
+    <input type="text" id="reg-nombre" placeholder="Ej: María González López">
+
+    <label>¿Es tu primera vez aplicando en AMPM?</label>
+    <div class="btn-toggle-group">
+        <button type="button" class="btn-toggle" data-value="si" onclick="seleccionarPrimeraVez(true)">✓ Sí, primera vez</button>
+        <button type="button" class="btn-toggle" data-value="no" onclick="seleccionarPrimeraVez(false)">↩ Ya apliqué antes</button>
+    </div>
+
+    <div id="campos-anteriores">
+        <label>¿A qué cargo aplicaste?</label>
+        <div class="chip-group" id="chips-cargo">
+            <button type="button" class="chip" onclick="seleccionarChip(this, 'cargo')">Agente SAC</button>
+            <button type="button" class="chip" onclick="seleccionarChip(this, 'cargo')">Gerente de tienda</button>
+            <button type="button" class="chip" onclick="seleccionarChip(this, 'cargo')">Operativo</button>
+            <button type="button" class="chip" onclick="seleccionarChip(this, 'cargo')">Oficina AMPM</button>
+        </div>
+
+        <label for="reg-anio">¿En qué año?</label>
+        <select id="reg-anio" onchange="anioAnterior = this.value; validarRegistro();">
+            <option value="">Selecciona...</option>
+            <option>2019</option>
+            <option>2020</option>
+            <option>2021</option>
+            <option>2022</option>
+            <option>2023</option>
+            <option>2024</option>
+            <option>2025</option>
+        </select>
+
+        <label>¿Hasta qué etapa llegaste?</label>
+        <div class="chip-group" id="chips-etapa">
+            <button type="button" class="chip" onclick="seleccionarChip(this, 'etapa')">Prueba de integridad</button>
+            <button type="button" class="chip" onclick="seleccionarChip(this, 'etapa')">Prueba matemática</button>
+            <button type="button" class="chip" onclick="seleccionarChip(this, 'etapa')">Entrevista</button>
+            <button type="button" class="chip" onclick="seleccionarChip(this, 'etapa')">Capacitación</button>
+        </div>
+    </div>
+
+    <button id="btn-comenzar" disabled onclick="comenzarEntrevista()">Comenzar Entrevista →</button>
+</div>
+
+<!-- ── Pantalla de Entrevista ── -->
+<div class="container" id="entrevista-screen" style="display:none;">
     <h2>AMPM Nicaragua</h2>
     <h3>Entrevista Virtual IA</h3>
 
@@ -233,6 +410,71 @@
 
     // ── Sesión única ────────────────────────────────────────────
     const sessionId = crypto.randomUUID();
+
+    // ── Registro ────────────────────────────────────────────────
+    let candidatoNombre  = "";
+    let primeraVez       = null;   // true | false | null
+    let cargoAnterior    = null;
+    let anioAnterior     = null;
+    let etapaAnterior    = null;
+
+    const regNombre      = document.getElementById("reg-nombre");
+    const camposAnteriores = document.getElementById("campos-anteriores");
+    const btnComenzar    = document.getElementById("btn-comenzar");
+
+    regNombre.addEventListener("input", () => {
+        candidatoNombre = regNombre.value.trim();
+        validarRegistro();
+    });
+
+    function seleccionarPrimeraVez(esPrimera) {
+        primeraVez = esPrimera;
+        const btns = document.querySelectorAll(".btn-toggle-group .btn-toggle");
+        btns.forEach(b => b.classList.remove("selected"));
+        if (esPrimera) {
+            btns[0].classList.add("selected");
+            camposAnteriores.classList.remove("visible");
+            cargoAnterior = null;
+            anioAnterior  = null;
+            etapaAnterior = null;
+        } else {
+            btns[1].classList.add("selected");
+            camposAnteriores.classList.add("visible");
+        }
+        validarRegistro();
+    }
+
+    function seleccionarChip(el, tipo) {
+        const group = el.parentElement;
+        group.querySelectorAll(".chip").forEach(c => c.classList.remove("selected"));
+        el.classList.add("selected");
+        if (tipo === "cargo") cargoAnterior = el.innerText;
+        if (tipo === "etapa") etapaAnterior = el.innerText;
+        validarRegistro();
+    }
+
+    function validarRegistro() {
+        let valido = candidatoNombre.length > 0 && primeraVez !== null;
+        if (primeraVez === false) {
+            valido = valido && cargoAnterior && etapaAnterior;
+        }
+        btnComenzar.disabled = !valido;
+    }
+
+    function comenzarEntrevista() {
+        document.getElementById("registro-screen").style.display  = "none";
+        document.getElementById("entrevista-screen").style.display = "block";
+    }
+
+    function datosRegistro() {
+        return {
+            nombre:         candidatoNombre,
+            primera_vez:    primeraVez,
+            cargo_anterior: cargoAnterior || null,
+            anio_anterior:  anioAnterior  || null,
+            etapa_anterior: etapaAnterior || null
+        };
+    }
 
     // ── Estado ──────────────────────────────────────────────────
     let mediaRecorder;
@@ -429,7 +671,8 @@
                 body: JSON.stringify({
                     event:   "finalizar",
                     sessionId,
-                    historial: conversationHistory
+                    historial: conversationHistory,
+                    ...datosRegistro()
                 })
             });
 
@@ -524,7 +767,7 @@
             const response = await fetchConTimeout(N8N_WEBHOOK_URL, {
                 method:  "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ event: "start", sessionId })
+                body: JSON.stringify({ event: "start", sessionId, ...datosRegistro() })
             });
 
             if (!response.ok) throw new Error('HTTP ' + response.status);
