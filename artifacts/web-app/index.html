@@ -566,7 +566,12 @@
                 if (lastUserEntry) lastUserEntry.content = transcript;
             }
 
-            if (!isRetry) {
+            if (isRetry) {
+                // Limpiar entrada de usuario huérfana — n8n pidió repetir
+                if (conversationHistory.length > 0 && conversationHistory[conversationHistory.length - 1].role === 'user') {
+                    conversationHistory.pop();
+                }
+            } else {
                 questionCount++;
                 actualizarContador();
                 conversationHistory.push({ role: "assistant", content: `[respuesta_${questionCount}]` });
