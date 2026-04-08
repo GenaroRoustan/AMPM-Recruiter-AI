@@ -462,6 +462,7 @@
     }
 
     async function comenzarEntrevista() {
+        desbloquearAudio();
         try { if (audioCtx) await audioCtx.resume(); } catch(e) {}
         document.getElementById("registro-screen").style.display  = "none";
         document.getElementById("entrevista-screen").style.display = "block";
@@ -492,6 +493,24 @@
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     // En móviles: NO crear AudioContext para evitar que robe la salida de audio
     const audioCtx = (!isMobile && AudioContextClass) ? new AudioContextClass() : null;
+
+    // ── Audio element global (reutilizado para evitar bloqueo de autoplay) ──
+    // iOS/Android bloquean audio.play() si el elemento no fue "desbloqueado"
+    // por un user gesture. Crear UNO SOLO y reutilizarlo.
+    const globalAudio = new Audio();
+    globalAudio.setAttribute('playsinline', '');
+    globalAudio.setAttribute('webkit-playsinline', '');
+    globalAudio.preload = 'auto';
+    let globalAudioUnlocked = false;
+
+    // Desbloquear el audio element durante un user gesture (click/tap)
+    function desbloquearAudio() {
+        if (globalAudioUnlocked) return;
+        // Play + pause inmediato para "activar" el elemento en iOS
+        const p = globalAudio.play();
+        if (p) p.then(() => { globalAudio.pause(); globalAudio.currentTime = 0; }).catch(() => {});
+        globalAudioUnlocked = true;
+    }
 
     // ── DOM ──────────────────────────────────────────────────────
     const recordBtn      = document.getElementById("recordBtn");
@@ -610,9 +629,13 @@
     }
 
     // ── Reproducción de audio ────────────────────────────────────
+    // Reutiliza globalAudio (ya desbloqueado por user gesture) para
+    // que iOS/Android no bloqueen audio.play() por falta de activación.
+    let audioSourceCreated = false;  // createMediaElementSource solo se puede llamar 1 vez por elemento
+
     function reproducirAudio(blob, onFinished) {
         const audioURL = URL.createObjectURL(blob);
-        const audio    = new Audio();
+        const audio    = globalAudio;
         let   finished = false;
 
         function safeFinish() {
@@ -620,6 +643,9 @@
             finished = true;
             clearTimeout(safetyTimeout);
             detenerAnimacionAvatar();
+            audio.onended = null;
+            audio.onerror = null;
+            audio.oncanplaythrough = null;
             URL.revokeObjectURL(audioURL);
             onFinished();
         }
@@ -627,11 +653,6 @@
         const safetyTimeout = setTimeout(() => {
             if (!finished) safeFinish();
         }, 60000);
-
-        // Atributos de compatibilidad móvil
-        audio.setAttribute('playsinline', '');
-        audio.setAttribute('webkit-playsinline', '');
-        audio.preload = 'auto';
 
         audio.onended = () => safeFinish();
         audio.onerror = () => {
@@ -649,37 +670,41 @@
             if (audioCtx) {
                 try {
                     audioCtx.resume();
-                    const source = audioCtx.createMediaElementSource(audio);
-                    iniciarAnimacionAvatar(source);
-                } catch (_) {
-                    // Fallo de AudioContext — play directo sin lip-sync
-                }
+                    // createMediaElementSource solo puede llamarse 1 vez por elemento
+                    if (!audioSourceCreated) {
+                        const source = audioCtx.createMediaElementSource(audio);
+                        iniciarAnimacionAvatar(source);
+                        audioSourceCreated = true;
+                    }
+                } catch (_) {}
             }
 
             audio.play().catch(() => safeFinish());
         }
 
-        // Asignar src y esperar que esté listo
+        // Asignar src — NO crear new Audio(), reusar el desbloqueado
         audio.src = audioURL;
 
         // canplaythrough es más confiable que canplay en iOS
-        if (audio.readyState >= 3) {
-            // Ya listo (cache o blob pequeño)
+        let played = false;
+        audio.oncanplaythrough = () => {
+            if (played) return;
+            played = true;
             intentarPlay();
-        } else {
-            let played = false;
-            audio.oncanplaythrough = () => {
-                if (played) return;
+        };
+
+        // Fallback: si canplaythrough no dispara en 5s, intentar igual
+        setTimeout(() => {
+            if (!played && !finished) {
                 played = true;
                 intentarPlay();
-            };
-            // Fallback: si canplaythrough no dispara en 5s, intentar igual
-            setTimeout(() => {
-                if (!played && !finished) {
-                    played = true;
-                    intentarPlay();
-                }
-            }, 5000);
+            }
+        }, 5000);
+
+        // Si ya está listo (readyState >= 3), disparar inmediato
+        if (audio.readyState >= 3) {
+            played = true;
+            intentarPlay();
         }
     }
 
@@ -721,6 +746,7 @@
     // ── Botón principal ──────────────────────────────────────────
     recordBtn.addEventListener("click", async () => {
         if (entrevistaFinalizada) return;
+        desbloquearAudio();
 
         // Primer clic: iniciar entrevista
         if (!entrevistaIniciada) {
