@@ -28,31 +28,41 @@
         /* ── Avatar ── */
         #avatar-wrapper {
             margin: 18px auto 20px;
-            width: 130px;
-            height: 130px;
+            width: 160px;
+            height: 160px;
             position: relative;
         }
 
         #avatar {
-            width: 130px;
-            height: 130px;
+            width: 160px;
+            height: 160px;
             border-radius: 50%;
-            background: #f0f0f0;
+            background: linear-gradient(180deg, #e8e8e8 0%, #d0d0d0 100%);
+            border: 2px solid rgba(211,47,47,0.2);
             display: flex;
             align-items: center;
             justify-content: center;
             box-shadow: 0 0 0px 0px rgba(211, 47, 47, 0.35);
-            transform: scale(1);
+            transform: scale(1) rotate(0deg);
             transition: transform 0.06s ease-out, box-shadow 0.06s ease-out;
             cursor: default;
             overflow: hidden;
+            position: relative;
         }
 
-        #avatar svg {
-            width: 72px;
-            height: 72px;
-            fill: rgba(255,255,255,0.92);
+        /* Blink overlay */
+        #avatar::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: rgba(0,0,0,0);
+            transition: background 0.06s ease-in;
             pointer-events: none;
+            z-index: 2;
+        }
+        #avatar.blink::before {
+            background: rgba(0,0,0,0.07);
         }
 
         /* Pulse ring idle (visible solo en reposo tras iniciar) */
@@ -70,14 +80,14 @@
             border-color: rgba(211,47,47,0.0);
         }
 
-        /* Avatar "pensando" — pulso suave durante espera */
-        @keyframes thinking {
-            0%, 100% { transform: scale(1); box-shadow: 0 0 0px 0px rgba(211,47,47,0.35); }
-            50%      { transform: scale(1.04); box-shadow: 0 0 14px 4px rgba(211,47,47,0.25); }
+        /* Avatar "pensando" — respiración suave */
+        @keyframes breathing {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 4px 1px rgba(211,47,47,0.08); }
+            50%      { transform: scale(1.02); box-shadow: 0 0 12px 4px rgba(211,47,47,0.15); }
         }
 
         #avatar-wrapper.pensando #avatar {
-            animation: thinking 1.8s ease-in-out infinite;
+            animation: breathing 3s ease-in-out infinite;
         }
 
         /* ── Botón ── */
@@ -452,6 +462,7 @@
         try { if (audioCtx) await audioCtx.resume(); } catch(e) {}
         document.getElementById("registro-screen").style.display  = "none";
         document.getElementById("entrevista-screen").style.display = "block";
+        iniciarParpadeo();
     }
 
     function datosRegistro() {
@@ -576,6 +587,7 @@
         dataArray     = new Uint8Array(analyser.frequencyBinCount);
         currentSource = source;
         avatarWrapper.classList.add("hablando");
+        detenerParpadeo();
         animarFrame();
     }
 
@@ -586,12 +598,15 @@
         const sum = dataArray.reduce((a, b) => a + b, 0);
         const vol = sum / (dataArray.length * 255);
 
-        const scale   = 1 + vol * 0.10;
+        // Scale 1.02–1.06 based on volume
+        const scale   = 1.02 + vol * 0.04;
+        // Subtle head oscillation synced to volume
+        const rotate  = Math.sin(Date.now() / 180) * vol * 2.5;
         const glow    = Math.round(vol * 32);
         const spread  = Math.round(vol * 10);
         const opacity = (0.25 + vol * 0.65).toFixed(2);
 
-        avatar.style.transform = `scale(${scale.toFixed(4)})`;
+        avatar.style.transform = `scale(${scale.toFixed(4)}) rotate(${rotate.toFixed(2)}deg)`;
         avatar.style.boxShadow = `0 0 ${glow}px ${spread}px rgba(211,47,47,${opacity})`;
     }
 
@@ -610,8 +625,38 @@
         dataArray     = null;
         currentSource = null;
         avatarWrapper.classList.remove("hablando");
-        avatar.style.transform = "scale(1)";
+        avatar.style.transform = "scale(1) rotate(0deg)";
         avatar.style.boxShadow = "0 0 0px 0px rgba(211,47,47,0.35)";
+        iniciarParpadeo();
+    }
+
+    // ── Parpadeo idle ────────────────────────────────────────────
+    let blinkTimeout = null;
+
+    function programarParpadeo() {
+        const delay = 4000 + Math.random() * 2000; // 4–6 s
+        blinkTimeout = setTimeout(() => {
+            if (avatarWrapper.classList.contains("hablando") ||
+                avatarWrapper.classList.contains("pensando")) {
+                programarParpadeo();
+                return;
+            }
+            avatar.classList.add("blink");
+            setTimeout(() => {
+                avatar.classList.remove("blink");
+                programarParpadeo();
+            }, 150);
+        }, delay);
+    }
+
+    function iniciarParpadeo() {
+        detenerParpadeo();
+        programarParpadeo();
+    }
+
+    function detenerParpadeo() {
+        if (blinkTimeout) { clearTimeout(blinkTimeout); blinkTimeout = null; }
+        avatar.classList.remove("blink");
     }
 
     // ── Reproducción de audio ────────────────────────────────────
@@ -796,6 +841,7 @@
             recordBtn.disabled   = true;
             statusText.innerText = "";
             avatarWrapper.classList.add("pensando");
+            detenerParpadeo();
             mostrarLoader();
         }
     });
