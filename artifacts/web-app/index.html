@@ -65,22 +65,7 @@
             background: rgba(0,0,0,0.07);
         }
 
-        /* Pulse ring idle (visible solo en reposo tras iniciar) */
-        #avatar-wrapper::after {
-            content: "";
-            position: absolute;
-            inset: -6px;
-            border-radius: 50%;
-            border: 2px solid rgba(211,47,47,0.18);
-            pointer-events: none;
-            transition: border-color 0.3s;
-        }
-
-        #avatar-wrapper.hablando::after {
-            border-color: rgba(211,47,47,0.0);
-        }
-
-        /* Avatar "pensando" — respiración suave */
+/* Avatar "pensando" — respiración suave */
         @keyframes breathing {
             0%, 100% { transform: scale(1); box-shadow: 0 0 4px 1px rgba(211,47,47,0.08); }
             50%      { transform: scale(1.02); box-shadow: 0 0 12px 4px rgba(211,47,47,0.15); }
@@ -568,24 +553,14 @@
         }
     }
 
-    // ── Avatar / Lip-sync ────────────────────────────────────────
-    let animFrameId   = null;
-    let analyser      = null;
-    let dataArray     = null;
-    let currentSource = null;
+    // ── Avatar / Animación hablando (time-based, funciona en desktop y móvil) ──
+    let animFrameId = null;
 
-    function iniciarAnimacionAvatar(source) {
-        if (!audioCtx) return;
+    function iniciarAnimacionAvatar() {
         if (animFrameId) {
             cancelAnimationFrame(animFrameId);
             animFrameId = null;
         }
-        analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
-        source.connect(analyser);
-        analyser.connect(audioCtx.destination);
-        dataArray     = new Uint8Array(analyser.frequencyBinCount);
-        currentSource = source;
         avatarWrapper.classList.add("hablando");
         detenerParpadeo();
         animarFrame();
@@ -593,21 +568,15 @@
 
     function animarFrame() {
         animFrameId = requestAnimationFrame(animarFrame);
-        analyser.getByteFrequencyData(dataArray);
+        const now = Date.now();
 
-        const sum = dataArray.reduce((a, b) => a + b, 0);
-        const vol = sum / (dataArray.length * 255);
-
-        // Scale 1.02–1.06 based on volume
-        const scale   = 1.02 + vol * 0.04;
-        // Subtle head oscillation synced to volume
-        const rotate  = Math.sin(Date.now() / 180) * vol * 2.5;
-        const glow    = Math.round(vol * 32);
-        const spread  = Math.round(vol * 10);
-        const opacity = (0.25 + vol * 0.65).toFixed(2);
+        // Scale oscila 1.02–1.06 basado en tiempo
+        const scale  = 1.04 + Math.sin(now / 200) * 0.02;
+        // Rotación sutil -1.5° a 1.5°
+        const rotate = Math.sin(now / 300) * 1.5;
 
         avatar.style.transform = `scale(${scale.toFixed(4)}) rotate(${rotate.toFixed(2)}deg)`;
-        avatar.style.boxShadow = `0 0 ${glow}px ${spread}px rgba(211,47,47,${opacity})`;
+        avatar.style.boxShadow = `0 0 8px 3px rgba(211,47,47,0.35)`;
     }
 
     function detenerAnimacionAvatar() {
@@ -615,15 +584,6 @@
             cancelAnimationFrame(animFrameId);
             animFrameId = null;
         }
-        if (currentSource && analyser) {
-            try {
-                currentSource.disconnect(analyser);
-                if (audioCtx) analyser.disconnect(audioCtx.destination);
-            } catch (_) {}
-        }
-        analyser      = null;
-        dataArray     = null;
-        currentSource = null;
         avatarWrapper.classList.remove("hablando");
         avatar.style.transform = "scale(1) rotate(0deg)";
         avatar.style.boxShadow = "0 0 0px 0px rgba(211,47,47,0.35)";
@@ -662,7 +622,7 @@
     // ── Reproducción de audio ────────────────────────────────────
     // Reutiliza globalAudio (ya desbloqueado por user gesture) para
     // que iOS/Android no bloqueen audio.play() por falta de activación.
-    let audioSourceCreated = false;  // createMediaElementSource solo se puede llamar 1 vez por elemento
+    let audioSourceNode = null;  // createMediaElementSource solo se puede llamar 1 vez por elemento
 
     function reproducirAudio(blob, onFinished) {
         const audioURL = URL.createObjectURL(blob);
@@ -697,18 +657,19 @@
             avatarWrapper.classList.remove("pensando");
             statusText.innerText = "La reclutadora está hablando...";
 
-            // Desktop con AudioContext: lip-sync
+            // Desktop con AudioContext: enrutar audio por el contexto
             if (audioCtx) {
                 try {
                     audioCtx.resume();
-                    // createMediaElementSource solo puede llamarse 1 vez por elemento
-                    if (!audioSourceCreated) {
-                        const source = audioCtx.createMediaElementSource(audio);
-                        iniciarAnimacionAvatar(source);
-                        audioSourceCreated = true;
+                    if (!audioSourceNode) {
+                        audioSourceNode = audioCtx.createMediaElementSource(audio);
+                        audioSourceNode.connect(audioCtx.destination);
                     }
                 } catch (_) {}
             }
+
+            // Iniciar animación (time-based, funciona siempre)
+            iniciarAnimacionAvatar();
 
             audio.play().catch(() => safeFinish());
         }
