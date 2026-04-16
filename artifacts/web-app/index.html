@@ -346,6 +346,10 @@
     <label for="reg-nombre">Nombre completo *</label>
     <input type="text" id="reg-nombre" placeholder="Ej: María González López">
 
+    <label for="reg-cedula">Número de cédula *</label>
+    <input type="text" id="reg-cedula" placeholder="Ej: 001-000000-0000X" maxlength="16" autocomplete="off" autocapitalize="characters">
+    <p id="reg-cedula-error" style="color:#d32f2f; font-size:12px; margin:4px 0 0; display:none;"></p>
+
     <label>¿Es tu primera vez aplicando en AMPM?</label>
     <div class="btn-toggle-group">
         <button type="button" class="btn-toggle" data-value="si" onclick="seleccionarPrimeraVez(true)">✓ Sí, primera vez</button>
@@ -448,6 +452,7 @@
 
     // ── Registro ────────────────────────────────────────────────
     let candidatoNombre  = "";
+    let candidatoCedula  = "";
     let primeraVez       = null;   // true | false | null
     let cargoAnterior    = null;
     let anioAnterior     = null;
@@ -459,6 +464,57 @@
 
     regNombre.addEventListener("input", () => {
         candidatoNombre = regNombre.value.trim();
+        validarRegistro();
+    });
+
+    function formatCedula(input) {
+        const upper = input.toUpperCase();
+        const digits = upper.replace(/\D/g, '').slice(0, 13);
+        const letter = (upper.match(/[A-Z]/g) ?? []).join('').slice(0, 1);
+        const p1 = digits.slice(0, 3);
+        const p2 = digits.slice(3, 9);
+        const p3 = digits.slice(9, 13);
+        let out = p1;
+        if (p2.length > 0) out += '-' + p2;
+        if (p3.length > 0) out += '-' + p3;
+        if (digits.length === 13 && letter) out += letter;
+        return out;
+    }
+
+    function validarCedula(cedula) {
+        const CEDULA_REGEX = /^\d{3}-\d{6}-\d{4}[A-Z]$/;
+        if (!CEDULA_REGEX.test(cedula)) return false;
+        const digits = cedula.replace(/\D/g, '');
+        const ddmmyy = digits.slice(3, 9);
+        const day = Number(ddmmyy.slice(0, 2));
+        const month = Number(ddmmyy.slice(2, 4));
+        const year2 = Number(ddmmyy.slice(4, 6));
+        if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+        const now = new Date();
+        const currentYear2 = now.getFullYear() % 100;
+        const fullYear = year2 > currentYear2 ? 1900 + year2 : 2000 + year2;
+        const date = new Date(fullYear, month - 1, day);
+        if (date.getFullYear() !== fullYear || date.getMonth() !== month - 1 || date.getDate() !== day) return false;
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        return date.getTime() <= today.getTime();
+    }
+
+    document.getElementById('reg-cedula').addEventListener('input', function() {
+        const formatted = formatCedula(this.value);
+        this.value = formatted;
+        candidatoCedula = formatted;
+        const errorEl = document.getElementById('reg-cedula-error');
+        const digits = formatted.replace(/\D/g, '');
+        if (digits.length >= 9) {
+            if (!validarCedula(formatted) && formatted.length === 16) {
+                errorEl.textContent = 'Formato inválido. Use 000-000000-0000A';
+                errorEl.style.display = 'block';
+            } else {
+                errorEl.style.display = 'none';
+            }
+        } else {
+            errorEl.style.display = 'none';
+        }
         validarRegistro();
     });
 
@@ -490,6 +546,7 @@
 
     function validarRegistro() {
         let valido = candidatoNombre.length > 0 && primeraVez !== null;
+        valido = valido && validarCedula(candidatoCedula);
         if (primeraVez === false) {
             valido = valido && cargoAnterior && etapaAnterior;
         }
@@ -512,6 +569,7 @@
     function datosRegistro() {
         return {
             nombre:         candidatoNombre,
+            cedula:         candidatoCedula,
             primera_vez:    primeraVez,
             cargo_anterior: cargoAnterior || null,
             anio_anterior:  anioAnterior  || null,
