@@ -782,11 +782,7 @@
                 audioChunks = [];
                 // Registrar turno del usuario en historial
                 conversationHistory.push({ role: "user", content: "", audioTimestamp: Date.now() });
-                if (questionCount >= MAX_QUESTIONS) {
-                    finalizarEntrevista();
-                } else {
-                    enviarAN8n(audioBlob);
-                }
+                enviarAN8n(audioBlob);
             };
 
             mediaRecorder.start();
@@ -856,11 +852,6 @@
             const blob = await response.blob();
 
             const isRetry = (response.headers.get('X-Is-Retry') ?? '').replace(/^=/, '').trim() === 'true';
-            const transcript = (response.headers.get('X-Transcript') ?? '').replace(/^=/, '').trim();
-            if (transcript && conversationHistory.length > 0) {
-                const lastUserEntry = conversationHistory.filter(h => h.role === 'user').pop();
-                if (lastUserEntry) lastUserEntry.content = transcript;
-            }
 
             if (isRetry) {
                 // Limpiar entrada de usuario huérfana — n8n pidió repetir
@@ -868,6 +859,11 @@
                     conversationHistory.pop();
                 }
             } else {
+                const transcript = (response.headers.get('X-Transcript') ?? '').replace(/^=/, '').trim();
+                if (transcript && conversationHistory.length > 0) {
+                    const lastUserEntry = conversationHistory.filter(h => h.role === 'user').pop();
+                    if (lastUserEntry) lastUserEntry.content = transcript;
+                }
                 questionCount++;
                 actualizarContador();
                 conversationHistory.push({ role: "assistant", content: `[respuesta_${questionCount}]` });
