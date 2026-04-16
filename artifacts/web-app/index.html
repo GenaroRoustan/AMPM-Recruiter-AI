@@ -923,18 +923,16 @@
                     const lastUserEntry = conversationHistory.filter(h => h.role === 'user').pop();
                     if (lastUserEntry) lastUserEntry.content = transcript;
                 }
-                questionCount++;
-                actualizarContador();
-                conversationHistory.push({ role: "assistant", content: `[respuesta_${questionCount}]` });
+                if (questionCount < MAX_QUESTIONS) {
+                    questionCount++;
+                    actualizarContador();
+                    conversationHistory.push({ role: "assistant", content: `[respuesta_${questionCount}]` });
+                }
             }
 
-            if (!isRetry && questionCount >= MAX_QUESTIONS) {
-                reproducirAudio(blob, () => {
-                    recordBtn.innerText  = "🎤 Responder última pregunta";
-                    recordBtn.disabled   = false;
-                    statusText.innerText = "Esta es tu última respuesta.";
-                });
-            } else {
+            if (!isRetry && questionCount >= MAX_QUESTIONS && !finalizando) {
+                reproducirAudio(blob, finalizarEntrevista);
+            } else if (!finalizando) {
                 reproducirAudio(blob, () => {
                     recordBtn.innerText  = "🎤 Hablar de nuevo";
                     recordBtn.disabled   = false;
